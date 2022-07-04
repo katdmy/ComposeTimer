@@ -5,7 +5,6 @@ import android.content.Context
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -32,11 +31,10 @@ import kotlinx.coroutines.launch
 import java.lang.IllegalArgumentException
 import java.util.*
 
-
-lateinit var tts: TextToSpeech
-var ttsEnabled: Boolean = false
-
 class MainActivity : ComponentActivity() {
+
+    private lateinit var tts: TextToSpeech
+    var ttsEnabled: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,16 +54,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        tts = TextToSpeech(this) { }
-        tts.language = Locale("en", "US")
-        Log.e("MainActivity", "Available locales:")
-        for (locale in tts.availableLanguages) {
-            Log.e("MainActivity", "    ${locale.language} - ${locale.country} - ${tts.isLanguageAvailable(Locale(locale.language, locale.country))}")
+        tts = TextToSpeech(this) {
+            tts.language = Locale("en", "US")
+            tts.setPitch(1.3f)
+            tts.setSpeechRate(0.7f)
+            ttsEnabled = true
         }
-        tts.setPitch(1.3f)
-        tts.setSpeechRate(0.7f)
-        ttsEnabled = true
-
     }
 
     private fun playWhistle(context: Context, soundNum: Int) {

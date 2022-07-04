@@ -7,8 +7,13 @@ import com.katdmy.timer.TimerSettings
 import java.io.InputStream
 import java.io.OutputStream
 
+@Suppress("BlockingMethodInNonBlockingContext")
 object TimerSettingsSerializer : Serializer<TimerSettings> {
-    override val defaultValue: TimerSettings = TimerSettings.getDefaultInstance()
+    override val defaultValue: TimerSettings = TimerSettings.newBuilder()
+        .setRoundSet(3)
+        .setWorkSecondsSet(30)
+        .setRestSecondsSet(30)
+        .build()
 
     override suspend fun readFrom(input: InputStream): TimerSettings {
         try {
