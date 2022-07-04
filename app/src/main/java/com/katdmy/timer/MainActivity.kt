@@ -192,7 +192,7 @@ fun ObserveNewRounds(
     sayRoundNumber: (Int) -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    if (currentRound > 0) {
+    if (currentRound > 1) {
         LaunchedEffect(currentRound) {
             scope.launch {
                 delay(1000)
