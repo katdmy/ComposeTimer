@@ -463,8 +463,23 @@ fun TimerScreen(
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
-fun TimerScreenPreview() {
+fun TimerPrepareScreenPreview() {
     TimerTheme {
-        TimerScreen(roundSet = 6, timeSet = 30, timerName = "Prepare", onStopClicked = {})
+        TimerScreen(roundSet = 6, timeSet = 10, timerName = "Prepare", onStopClicked = {})
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun TimerWorkScreenPreview() {
+    TimerTheme {
+        TimerScreen(roundSet = 6, timeSet = 30, timerName = "Work", onStopClicked = {})
+    }
+}
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun TimerRestScreenPreview() {
+    TimerTheme {
+        TimerScreen(roundSet = 6, timeSet = 30, timerName = "Rest", onStopClicked = {})
     }
 }
