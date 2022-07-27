@@ -2,9 +2,14 @@ package com.katdmy.timer
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -33,6 +38,8 @@ import java.util.*
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var audioManager: AudioManager
+    private lateinit var focusRequest: AudioFocusRequest
     private lateinit var tts: TextToSpeech
     var ttsEnabled: Boolean = false
 
@@ -53,13 +60,45 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        tts = TextToSpeech(this) {
-            tts.language = Locale("en", "US")
-            tts.setPitch(1.3f)
-            tts.setSpeechRate(0.7f)
-            ttsEnabled = true
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        focusRequest =
+            AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE).run {
+                setAudioAttributes(AudioAttributes.Builder().run {
+                    setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                    setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    build()
+                })
+                build()
+            }
+
+        tts = TextToSpeech(this) {status ->
+            if (status == TextToSpeech.SUCCESS) {
+                ttsInitialized()
+                tts.language = Locale("en", "US")
+                tts.setPitch(1.3f)
+                tts.setSpeechRate(0.7f)
+                ttsEnabled = true
+            }
         }
+    }
+
+    private fun ttsInitialized() {
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {
+                audioManager.requestAudioFocus(focusRequest)
+            }
+
+            override fun onDone(utteranceId: String?) {
+                audioManager.abandonAudioFocusRequest(focusRequest)
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                audioManager.abandonAudioFocusRequest(focusRequest)
+            }
+        })
     }
 
     private fun playWhistle(context: Context, soundNum: Int) {
