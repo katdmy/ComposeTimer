@@ -2,13 +2,7 @@ package com.katdmy.timer
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
-import android.media.MediaPlayer
 import android.os.Bundle
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,7 +13,6 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,20 +21,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.core.DataStore
 import androidx.datastore.dataStore
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.katdmy.timer.data.TimerSettingsSerializer
 import com.katdmy.timer.ui.MainViewModel
 import com.katdmy.timer.ui.theme.TimerTheme
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.lang.IllegalArgumentException
 import java.util.*
 
 class MainActivity : ComponentActivity() {
-
-    private lateinit var audioManager: AudioManager
-    private lateinit var focusRequest: AudioFocusRequest
-    private lateinit var tts: TextToSpeech
-    var ttsEnabled: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,70 +39,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colors.background
                 ) {
-                    TimerApp(
-                        dataStore = timerSettingsDataStore,
-                        playWhistle = { context, soundNum -> playWhistle(context, soundNum) },
-                        sayRoundNumber = { number -> sayRoundNumber(number) }
-                    )
+                    TimerApp(dataStore = timerSettingsDataStore)
                 }
             }
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        focusRequest =
-            AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE).run {
-                setAudioAttributes(AudioAttributes.Builder().run {
-                    setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
-                    setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    build()
-                })
-                build()
-            }
-
-        tts = TextToSpeech(this) {status ->
-            if (status == TextToSpeech.SUCCESS) {
-                ttsInitialized()
-                tts.language = Locale("en", "US")
-                tts.setPitch(1.3f)
-                tts.setSpeechRate(0.7f)
-                ttsEnabled = true
-            }
-        }
-    }
-
-    private fun ttsInitialized() {
-        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {
-                audioManager.requestAudioFocus(focusRequest)
-            }
-
-            override fun onDone(utteranceId: String?) {
-                audioManager.abandonAudioFocusRequest(focusRequest)
-            }
-
-            @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) {
-                audioManager.abandonAudioFocusRequest(focusRequest)
-            }
-        })
-    }
-
-    private fun playWhistle(context: Context, soundNum: Int) {
-        val whistleResId = when (soundNum) {
-            0 -> R.raw.short_whistle
-            1 -> R.raw.single_whistle
-            2 -> R.raw.long_whistle
-            else -> { throw IllegalArgumentException("Illegal sound id")}
-        }
-        val mp = MediaPlayer.create(context, whistleResId)
-        mp.setOnCompletionListener { mp.release() }
-        mp.start()
-    }
-
-    private fun sayRoundNumber(number: Int) {
-        if (ttsEnabled)
-            tts.speak("/ / / /  Round $number", TextToSpeech.QUEUE_FLUSH, null, "")
     }
 
     private val Context.timerSettingsDataStore: DataStore<TimerSettings> by dataStore(
@@ -127,11 +55,10 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun TimerApp(
-    viewModel: MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     dataStore: DataStore<TimerSettings>,
-    playWhistle: (Context, Int) -> Unit,
-    sayRoundNumber: (Int) -> Unit
+    viewModel: MainViewModel = viewModel()
 ) {
+
     val scope = rememberCoroutineScope()
 
     val timerSettings: State<TimerSettings> = dataStore.data.collectAsState(TimerSettings.getDefaultInstance())
@@ -141,12 +68,6 @@ fun TimerApp(
     val currentTimerTime = viewModel.currentTimerTime.observeAsState().value ?: 0
     val timerName = viewModel.timerName.observeAsState().value ?: ""
 
-    val shortWhistle = viewModel.shortWhistle.observeAsState().value ?: 0
-    val singleWhistle = viewModel.singleWhistle.observeAsState().value ?: 0
-    val longWhistle = viewModel.longWhistle.observeAsState().value ?: 0
-
-    ObserveLongWhistle(longWhistle, playWhistle)
-
     if (timerSet) {
         TimerScreen(
             roundSet = currentRound,
@@ -154,8 +75,6 @@ fun TimerApp(
             timerName = timerName,
             onStopClicked = { viewModel.stopTimer() }
         )
-        ObserveSounds(shortWhistle, singleWhistle, playWhistle)
-        ObserveNewRounds(currentRound, sayRoundNumber)
     } else {
         Settings(
             roundSet = timerSettings.value.roundSet,
@@ -192,55 +111,6 @@ fun TimerApp(
         )
     }
 }
-
-@Composable
-fun ObserveSounds(
-    shortWhistle: Long,
-    singleWhistle: Long,
-    playWhistle: (Context, Int) -> Unit
-) {
-    val context = LocalContext.current
-    if (shortWhistle > 0) {
-        LaunchedEffect(shortWhistle) {
-            playWhistle(context, 0)
-        }
-    }
-    if (singleWhistle > 0) {
-        LaunchedEffect(singleWhistle) {
-            playWhistle(context, 1)
-        }
-    }
-}
-
-@Composable
-fun ObserveLongWhistle(
-    longWhistle: Long,
-    playWhistle: (Context, Int) -> Unit
-) {
-    val context = LocalContext.current
-    if (longWhistle > 0) {
-        LaunchedEffect(longWhistle) {
-            playWhistle(context, 2)
-        }
-    }
-}
-
-@Composable
-fun ObserveNewRounds(
-    currentRound: Int,
-    sayRoundNumber: (Int) -> Unit
-) {
-    val scope = rememberCoroutineScope()
-    if (currentRound > 1) {
-        LaunchedEffect(currentRound) {
-            scope.launch {
-                delay(1000)
-                sayRoundNumber(currentRound)
-            }
-        }
-    }
-}
-
 
 @Composable
 fun SettingsHeader() {
