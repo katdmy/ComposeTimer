@@ -11,13 +11,10 @@ import android.os.IBinder
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.viewModelScope
-import com.katdmy.timer.helper.EventLiveData
 import com.katdmy.timer.service.SoundService
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-class MainViewModel(private val application: Application): AndroidViewModel(application) {
+class MainViewModel(private val application: Application): AndroidViewModel(application), SoundService.Listener {
 
     private val _timerSet = MutableLiveData(false)
     val timerSet: LiveData<Boolean> = _timerSet
@@ -31,9 +28,7 @@ class MainViewModel(private val application: Application): AndroidViewModel(appl
     private val _timerName = MutableLiveData("Prepare")
     val timerName: LiveData<String> = _timerName
 
-    private val closingSoundEnded = EventLiveData<Unit>()
-
-    private val MIN_TIME_FOR_TICK = 6
+    private val MIN_TIME_FOR_TICK = 5
 
     private var prepareTimer: CountDownTimer? = null
     private var workTimer: CountDownTimer? = null
@@ -42,14 +37,6 @@ class MainViewModel(private val application: Application): AndroidViewModel(appl
     @SuppressLint("StaticFieldLeak")
     private var soundService: SoundService? = null
 
-
-    init {
-        viewModelScope.launch {
-            closingSoundEnded.observeForever {
-                unbindSoundService()
-            }
-        }
-    }
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(componentName: ComponentName, iBinder: IBinder) {
@@ -73,7 +60,7 @@ class MainViewModel(private val application: Application): AndroidViewModel(appl
                 _timerName.value = "Rest"
                 _currentTimerTime.value = (millisUntilFinished / 1000f).roundToInt()
                 if (restSecondsSet > MIN_TIME_FOR_TICK)
-                    if (millisUntilFinished in 3950..4050 || millisUntilFinished in 2950..3050 || millisUntilFinished in 1950..2050 || millisUntilFinished in 950..1050) {
+                    if (checkIfMillisAreValid(millisUntilFinished, 3)) {
                         soundService?.playWhistle(0)
                     }
             }
@@ -82,6 +69,7 @@ class MainViewModel(private val application: Application): AndroidViewModel(appl
                 if (_currentRound.value == roundSet) {
                     soundService?.playWhistle(2)
                     _timerSet.value = false
+                    soundService?.registerListener(this@MainViewModel)
                 } else {
                     soundService?.playWhistle(1)
                     _currentRound.value = (_currentRound.value as Int) + 1
@@ -96,7 +84,7 @@ class MainViewModel(private val application: Application): AndroidViewModel(appl
                 _timerName.value = "Work"
                 _currentTimerTime.value = (millisUntilFinished / 1000f).roundToInt()
                 if (workSecondsSet > MIN_TIME_FOR_TICK)
-                    if (millisUntilFinished in 3950..4050 || millisUntilFinished in 2900..3050 || millisUntilFinished in 1950..2050 || millisUntilFinished in 950..1050) {
+                    if (checkIfMillisAreValid(millisUntilFinished, 3)) {
                         soundService?.playWhistle(0)
                     }
             }
@@ -111,7 +99,7 @@ class MainViewModel(private val application: Application): AndroidViewModel(appl
             override fun onTick(millisUntilFinished: Long) {
                 _timerName.value = "Prepare"
                 _currentTimerTime.value = (millisUntilFinished / 1000f).roundToInt()
-                if (millisUntilFinished in 3950..4050 || millisUntilFinished in 2900..3050 || millisUntilFinished in 1950..2050 || millisUntilFinished in 950..1050) {
+                if (checkIfMillisAreValid(millisUntilFinished, 3)) {
                     soundService?.playWhistle(0)
                 }
             }
@@ -140,11 +128,20 @@ class MainViewModel(private val application: Application): AndroidViewModel(appl
         application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
-    private fun unbindSoundService() {
+    override fun onCleared() {
         application.unbindService(serviceConnection)
     }
 
-    override fun onCleared() {
+    override fun onClosingSoundEnded() {
+        soundService?.unregisterListener(this)
         application.unbindService(serviceConnection)
+    }
+
+    private fun checkIfMillisAreValid(millis: Long, valid: Int): Boolean {
+        for (currentCheck in 1 .. valid) {
+            if (millis in currentCheck*1000-50 .. currentCheck*1000+50)
+                return true
+        }
+        return false
     }
 }

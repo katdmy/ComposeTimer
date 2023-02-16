@@ -9,9 +9,9 @@ import android.os.Binder
 import android.os.IBinder
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.util.Log
 import com.katdmy.timer.MainActivity
 import com.katdmy.timer.R
-import com.katdmy.timer.helper.EventLiveData
 import java.util.*
 
 class SoundService: Service() {
@@ -26,20 +26,34 @@ class SoundService: Service() {
     private var mp1: MediaPlayer? = null
     private var mp2: MediaPlayer? = null
 
-    private val closingSoundEnded = EventLiveData<Unit>()
+    private val listeners = HashSet<Listener>()
 
+
+    interface Listener {
+        fun onClosingSoundEnded()
+    }
+
+    fun registerListener(listener: Listener) {
+        listeners.add(listener)
+    }
+
+    fun unregisterListener(listener: Listener) {
+        listeners.remove(listener)
+    }
 
     inner class SoundServiceBinder: Binder() {
         fun getService(): SoundService = this@SoundService
     }
 
     override fun onBind(p0: Intent?): IBinder {
+        Log.e("SERVICE", "onBind")
         initialisation()
         startForeground(1, createNotification())
         return binder
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        Log.e("SERVICE", "onUnbind")
         clearance()
         return super.onUnbind(intent)
     }
@@ -71,8 +85,9 @@ class SoundService: Service() {
         mp1 = MediaPlayer.create(this, R.raw.single_whistle)
         mp2 = MediaPlayer.create(this, R.raw.long_whistle).apply {
             setOnCompletionListener {
-                clearance()
-                closingSoundEnded.triggerEvent(Unit)
+                for (listener in listeners) {
+                    listener.onClosingSoundEnded()
+                }
             }
         }
     }
