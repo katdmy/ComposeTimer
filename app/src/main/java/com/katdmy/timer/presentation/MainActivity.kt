@@ -1,15 +1,14 @@
-package com.katdmy.timer
+package com.katdmy.timer.presentation
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,94 +18,56 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.datastore.core.DataStore
-import androidx.datastore.dataStore
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.katdmy.timer.data.TimerSettingsSerializer
-import com.katdmy.timer.ui.MainViewModel
-import com.katdmy.timer.ui.theme.TimerTheme
-import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.katdmy.timer.presentation.theme.TimerTheme
 import java.util.*
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val viewModel: MainViewModel by viewModels { MainViewModelFactory(this)}
+
         setContent {
             TimerTheme {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colors.background
                 ) {
-                    TimerApp(dataStore = timerSettingsDataStore)
+                    TimerApp(viewModel)
                 }
             }
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
-
-    private val Context.timerSettingsDataStore: DataStore<TimerSettings> by dataStore(
-        fileName = "timer_settings.pb",
-        serializer = TimerSettingsSerializer
-    )
 }
 
 
 @Composable
 fun TimerApp(
-    dataStore: DataStore<TimerSettings>,
-    viewModel: MainViewModel = viewModel()
+    viewModel: MainViewModel
 ) {
+    val initialState by viewModel.initialState.collectAsStateWithLifecycle()
+    val currentState by viewModel.currentState.collectAsStateWithLifecycle()
 
-    val scope = rememberCoroutineScope()
-
-    val timerSettings: State<TimerSettings> = dataStore.data.collectAsState(TimerSettings.getDefaultInstance())
-
-    val timerSet = viewModel.timerSet.observeAsState().value ?: false
-    val currentRound = viewModel.currentRound.observeAsState().value ?: 0
-    val currentTimerTime = viewModel.currentTimerTime.observeAsState().value ?: 0
-    val timerName = viewModel.timerName.observeAsState().value ?: ""
-
-    if (timerSet) {
+    if (currentState.timerSet) {
         TimerScreen(
-            roundSet = currentRound,
-            timeSet = currentTimerTime,
-            timerName = timerName,
+            roundSet = currentState.currentRound,
+            timeSet = currentState.currentTimerTime,
+            timerName = currentState.timerName,
             onStopClicked = { viewModel.stopTimer() }
         )
     } else {
         Settings(
-            roundSet = timerSettings.value.roundSet,
-            updateRoundSet = {
-                    round: Int -> scope.launch {
-                        dataStore.updateData {
-                                preferences -> preferences.toBuilder().setRoundSet(round).build()
-                        }
-                    }
-            },
-            workSecondsSet = timerSettings.value.workSecondsSet,
-            updateWorkSet = {
-                    work: Int -> scope.launch {
-                        dataStore.updateData {
-                                preferences -> preferences.toBuilder().setWorkSecondsSet(work).build()
-                        }
-                    }
-            },
-            restSecondsSet = timerSettings.value.restSecondsSet,
-            updateRestSet = {
-                    rest: Int -> scope.launch {
-                        dataStore.updateData {
-                                preferences -> preferences.toBuilder().setRestSecondsSet(rest).build()
-                        }
-                    }
-            },
+            roundSet = initialState.roundSet,
+            updateRoundSet = viewModel::updateRoundSet,
+            workSecondsSet = initialState.workSecondsSet,
+            updateWorkSet = viewModel::updateWorkSet,
+            restSecondsSet = initialState.restSecondsSet,
+            updateRestSet = viewModel::updateRestSet,
             onStartClicked = {
-                viewModel.startTimer(
-                    timerSettings.value.roundSet,
-                    timerSettings.value.workSecondsSet,
-                    timerSettings.value.restSecondsSet
-                )
+                viewModel.startTimer()
             }
         )
     }
@@ -181,6 +142,8 @@ fun WorkRow(
     updateWorkSet: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // TODO: fix seconds input field - app crashes with intermediate value of "" in Work Field,
+    // TODO: input should use replace mode instead of insert mode
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Button(
             onClick = { if (workSet > 0) updateWorkSet(workSet - 1) },

@@ -1,4 +1,4 @@
-package com.katdmy.timer.ui.theme
+package com.katdmy.timer.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 

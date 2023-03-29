@@ -10,7 +10,7 @@ import android.os.IBinder
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
-import com.katdmy.timer.MainActivity
+import com.katdmy.timer.presentation.MainActivity
 import com.katdmy.timer.R
 import java.util.*
 
